@@ -119,38 +119,59 @@ const plugin: Plugin<PluginOptions> = (editor, opts = {}) => {
   editor.Styles.addBuiltIn('background', {
     type: 'stack',
     // @ts-ignore
-    layerSeparator: /(?<!\(.*[^)]),(?![^(]*\))/,
+    layerSeparator: (styleValue: string): string[] => {
+      // Custom function to handle layer separation similar to the first regex
+      let layers: any[] = [];
+      let lastSplit = 0;
+      let inParens = 0;
+      for (let i = 0; i < styleValue.length; i++) {
+          if (styleValue[i] === '(') {
+              inParens++;
+          } else if (styleValue[i] === ')' && inParens > 0) {
+              inParens--;
+          } else if (styleValue[i] === ',' && inParens === 0) {
+              layers.push(styleValue.substring(lastSplit, i).trim());
+              lastSplit = i + 1;
+          }
+      }
+      layers.push(styleValue.substring(lastSplit).trim()); // Push the last segment
+      return layers;
+    },
     layerJoin: ', ',
     detached: true,
     layerLabel: (l: any, { values, property }: any) => {
       const opt = property.getProperty(PROPERTY_BG_TYPE).getOption(values[PROPERTY_BG_TYPE]);
       return opt?.title ? `${capitalize(opt.title)}` : '';
     },
-    fromStyle(style: Record<string, string>, { property, name }: any) {
+    fromStyle: (style: Record<string, string>, { property, name }: any) => {
+      let layers: any[] = [];
       const sep = property.getLayerSeparator();
-      const props = property.getProperties();
-      let layers: any = [];
 
       if (style[PROPERTY_IMAGE]) {
-        // Get layers from the `background-image` property
-        layers = property.__splitStyleName(style, PROPERTY_IMAGE, sep).map(getLayerFromBgImage);
+        // Handle specific background-image layers
+        layers = sep(style[PROPERTY_IMAGE]).map(getLayerFromBgImage);
+      }
 
-        // Update layers by inner properties
-        props.forEach((prop: any) => {
-          const id = prop.getId();
-          const propName = prop.getName();
-          if (propName === PROPERTY_IMAGE) return;
-          property.__splitStyleName(style, propName, sep)
-            .map((value: string) => ({ [id]: value || prop.getDefaultValue() }))
-            .forEach((inLayer: any, i: number) => {
-              layers[i] = layers[i] ? { ...layers[i], ...inLayer } : inLayer;
-            });
+      // Now address all other style properties using potentially different layer logic
+      const props = property.getProperties();
+      props.forEach((prop: any) => {
+        const propName = prop.getName();
+        if (propName === PROPERTY_IMAGE) return;
+
+        let localLayers = sep(style[propName] || '');
+        localLayers.forEach((layerValue: string, index: number) => {
+          let existingLayer: any = layers[index] || {};
+          existingLayer[prop.getId()] = layerValue || prop.getDefaultValue();
+          layers[index] = existingLayer;
         });
-      } else if (style[name]) {
-        // Partial support for the `background` property
-        layers = property.__splitStyleName(style, name, /(?![^)(]*\([^)(]*?\)\)),(?![^\(]*\))/)
-          .map((value: string) => value.substring(0, value.lastIndexOf(')') + 1))
-          .map(getLayerFromBgImage);
+      });
+
+      if (style[name]) {
+        // Partial support for the `background` property, needs special handling if regex was different
+        let bgLayers = sep(style[name]); // This may need adjustment if conditions are different
+        bgLayers = bgLayers.map((value: string) => value.substring(0, value.lastIndexOf(')') + 1))
+                            .map(getLayerFromBgImage);
+        layers = layers.concat(bgLayers);
       }
 
       return layers;
