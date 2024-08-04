@@ -86,7 +86,6 @@ const plugin: Plugin<PluginOptions> = (editor, opts = {}) => {
 
   const onBgTypeChange = ({ property, to }: any) => {
     const newTypeValue = to.value;
-
     // Hide style properties based on selected type
     if (newTypeValue) {
       property.getParent().getProperties().forEach((prop: any) => {
@@ -118,8 +117,14 @@ const plugin: Plugin<PluginOptions> = (editor, opts = {}) => {
 
   editor.Styles.addBuiltIn('background', {
     type: 'stack',
+    onChange: ( {to, property}) => {
+      if (to && to['isEmptyValue']) {
+        property.clear();
+      }
+    },
     // @ts-ignore
     layerSeparator: (styleValue: string): string[] => {
+      if (!styleValue) return [];
       // Custom function to handle layer separation similar to the first regex
       let layers: any[] = [];
       let lastSplit = 0;
@@ -150,23 +155,23 @@ const plugin: Plugin<PluginOptions> = (editor, opts = {}) => {
       if (style[PROPERTY_IMAGE]) {
         // Handle specific background-image layers
         layers = sep(style[PROPERTY_IMAGE]).map(getLayerFromBgImage);
-      }
 
-      // Now address all other style properties using potentially different layer logic
-      const props = property.getProperties();
-      props.forEach((prop: any) => {
-        const propName = prop.getName();
-        if (propName === PROPERTY_IMAGE) return;
+        if (layers.length) {
+          // Now address all other style properties using potentially different layer logic
+          const props = property.getProperties();
+          props.forEach((prop: any) => {
+            const propName = prop.getName();
+            if (propName === PROPERTY_IMAGE) return;
 
-        let localLayers = sep(style[propName] || '');
-        localLayers.forEach((layerValue: string, index: number) => {
-          let existingLayer: any = layers[index] || {};
-          existingLayer[prop.getId()] = layerValue || prop.getDefaultValue();
-          layers[index] = existingLayer;
-        });
-      });
-
-      if (style[name]) {
+            const id = prop.getId();
+            sep(style[propName])
+            .map((value: string) => ({ [id]: value || prop.getDefaultValue() }))
+            .forEach((inLayer: any, i: number) => {
+              layers[i] = layers[i] ? { ...layers[i], ...inLayer } : inLayer;
+            });
+          });
+        }
+      } else if (style[name]) {
         // Partial support for the `background` property, needs special handling if regex was different
         let bgLayers = sep(style[name]); // This may need adjustment if conditions are different
         bgLayers = bgLayers.map((value: string) => value.substring(0, value.lastIndexOf(')') + 1))
@@ -178,6 +183,7 @@ const plugin: Plugin<PluginOptions> = (editor, opts = {}) => {
     },
     toStyle(newValues: Record<string, string>) {
       const values = { ...newValues };
+      
       const type = values[PROPERTY_BG_TYPE];
       let image = values[PROPERTY_BG_IMAGE];
 
@@ -209,7 +215,7 @@ const plugin: Plugin<PluginOptions> = (editor, opts = {}) => {
         label: ' ',
         property: PROPERTY_BG_TYPE,
         type: 'radio',
-        default: BackgroundType.Image,
+        default: BackgroundType.Color,
         onChange: onBgTypeChange,
         options: [
           {

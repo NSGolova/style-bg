@@ -1,6 +1,6 @@
 {
   "name": "grapesjs-style-bg",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "description": "Full-stack background style property type for GrapesJS, with the possibility to add images, colors, and gradients",
   "author": "Artur Arseniev",
   "main": "dist/index.js",
@@ -20,11 +20,11 @@
     "plugin"
   ],
   "devDependencies": {
-    "grapesjs": "^0.21.2",
-    "grapesjs-cli": "^4.1.1"
+    "grapesjs": "^0.21.11",
+    "grapesjs-cli": "^4.1.3"
   },
   "license": "MIT",
   "dependencies": {
-    "grapesjs-style-gradient": "^3.0.1"
+    "grapesjs-style-gradient": "^3.0.3"
   }
 }
